@@ -1,0 +1,150 @@
+/* Inside the widget's shadow root: nothing here leaks into the page. The page's own rules can still
+   match the host element, so everything inheritable is set again on .cb-fill, which they cannot reach. */
+:host {
+  all: initial;
+  display: block;
+  --cb-accent: #2563eb;
+  --cb-bg: #ffffff;
+  --cb-surface: #f3f4f6;
+  --cb-border: #e5e7eb;
+  --cb-text: #111827;
+  --cb-muted: #6b7280;
+  --cb-on-accent: #ffffff;
+  --cb-danger: #b91c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :host {
+    --cb-bg: #111827;
+    --cb-surface: #1f2937;
+    --cb-border: #374151;
+    --cb-text: #f9fafb;
+    --cb-muted: #9ca3af;
+    --cb-danger: #fca5a5;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+button, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: 0.5; }
+:focus-visible { outline: 2px solid var(--cb-accent); outline-offset: 2px; }
+p { margin: 0; }
+
+/* ---------------------------------------------------------------- conversation */
+.cb-chat {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  background: var(--cb-bg); color: var(--cb-text); overflow: hidden;
+}
+.cb-header {
+  display: flex; align-items: center; gap: 4px; flex: none;
+  padding: 10px 8px 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--cb-accent); color: var(--cb-on-accent);
+}
+.cb-title { flex: 1; min-width: 0; margin: 0; font-size: 16px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-header__btn {
+  flex: none; min-height: 36px; min-width: 36px; padding: 0 10px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; font-size: 14px;
+}
+.cb-header__btn:hover:not(:disabled) { background: rgb(255 255 255 / 0.18); }
+.cb-header__btn:focus-visible { outline-color: var(--cb-on-accent); }
+.cb-close { font-size: 18px; }
+
+.cb-log {
+  flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 16px 12px; list-style: none;
+  display: flex; flex-direction: column; gap: 8px; overscroll-behavior: contain;
+}
+.cb-row { display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
+.cb-row--user { align-items: flex-end; }
+.cb-bubble {
+  max-width: 85%; padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: var(--cb-surface);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.cb-bubble--user { border-radius: 16px 16px 4px 16px; background: var(--cb-accent); color: var(--cb-on-accent); }
+.cb-image { display: block; max-width: min(85%, 280px); border-radius: 12px; }
+.cb-failed { margin-top: 4px; font-size: 13px; color: var(--cb-danger); }
+.cb-failed--open { padding: 0 12px 8px; }
+.cb-link { padding: 0; border: 0; background: none; color: inherit; font-weight: 600; text-decoration: underline; }
+.cb-empty { margin: auto; color: var(--cb-muted); }
+.cb-blocked { margin: auto; padding: 24px; text-align: center; color: var(--cb-muted); }
+
+/* ---------------------------------------------------------------- rich messages */
+.cb-card {
+  width: min(85%, 280px); flex: none; border: 1px solid var(--cb-border); border-radius: 12px;
+  background: var(--cb-bg); overflow: hidden;
+}
+.cb-card__image { display: block; width: 100%; aspect-ratio: 2 / 1; object-fit: cover; background: var(--cb-surface); }
+.cb-card__body { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.cb-card__body:empty { display: none; }
+.cb-card__title, .cb-list__header { font-weight: 700; overflow-wrap: anywhere; }
+.cb-card__desc { color: var(--cb-muted); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cb-list__header { padding: 10px 12px; border-bottom: 1px solid var(--cb-border); }
+.cb-list { margin: 0; padding: 0; list-style: none; }
+.cb-list__item { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--cb-border); }
+.cb-list__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cb-list__title { color: inherit; font-weight: 600; overflow-wrap: anywhere; }
+.cb-list__desc { color: var(--cb-muted); font-size: 13px; overflow-wrap: anywhere; }
+.cb-list__image { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+.cb-buttons { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 12px; }
+.cb-buttons .cb-chip { width: 100%; text-align: center; }
+.cb-carousel {
+  display: flex; gap: 8px; width: 100%; overflow-x: auto; padding-bottom: 4px;
+  scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+}
+.cb-carousel .cb-card { width: min(75%, 240px); scroll-snap-align: start; }
+
+/* ---------------------------------------------------------------- quick replies, input */
+.cb-chip {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 6px 12px;
+  border: 1px solid var(--cb-accent); border-radius: 18px; background: var(--cb-bg); color: var(--cb-accent);
+  font-size: 14px; text-decoration: none; overflow-wrap: anywhere;
+}
+.cb-chip:hover:not(:disabled) { background: var(--cb-surface); }
+.cb-replies { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; flex: none; max-height: 30%; overflow-y: auto; }
+.cb-composer {
+  display: flex; align-items: flex-end; gap: 8px; flex: none; padding: 8px 12px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--cb-border); background: var(--cb-bg);
+}
+.cb-input {
+  flex: 1; min-width: 0; min-height: 40px; max-height: 120px; padding: 8px 12px; resize: none; field-sizing: content;
+  border: 1px solid var(--cb-border); border-radius: 20px; background: var(--cb-surface); font-size: 16px; line-height: 1.4;
+}
+.cb-input:focus-visible { outline-offset: 0; }
+.cb-send {
+  flex: none; display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: var(--cb-accent); color: var(--cb-on-accent);
+}
+.cb-send svg { width: 20px; height: 20px; fill: currentColor; }
+.cb-count { padding: 0 16px 6px; text-align: right; font-size: 12px; color: var(--cb-muted); }
+.cb-typing { display: inline-flex; gap: 4px; padding: 12px 14px; border-radius: 16px; background: var(--cb-surface); }
+.cb-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--cb-muted); animation: cb-blink 1.2s infinite ease-in-out; }
+.cb-typing i:nth-child(2) { animation-delay: 0.2s; }
+.cb-typing i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cb-blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cb-typing i { animation: none; opacity: 0.6; } }
+
+/* ---------------------------------------------------------------- launcher (a site) */
+.cb-launcher {
+  position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 2147483000; width: 56px; height: 56px; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: var(--cb-accent); color: var(--cb-on-accent);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+}
+.cb-launcher svg { width: 26px; height: 26px; fill: currentColor; }
+.cb-panel {
+  position: fixed; right: 20px; bottom: 88px; z-index: 2147483000;
+  width: 380px; height: min(640px, calc(100vh - 120px)); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.3);
+}
+.cb-panel[hidden] { display: none; }
+@media (max-width: 480px), (max-height: 520px) {
+  .cb-panel { inset: 0; width: auto; height: auto; border-radius: 0; }
+  .cb-panel:not([hidden]) ~ .cb-launcher { display: none; }
+}
+/* ---------------------------------------------------------------- the root inside the shadow */
+.cb-fill {
+  width: 100%; height: 100%;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-style: normal; font-weight: 400; letter-spacing: normal; word-spacing: normal; text-align: left; text-indent: 0;
+  text-transform: none; text-shadow: none; white-space: normal; direction: ltr; visibility: visible; cursor: auto;
+  color: var(--cb-text); -webkit-text-size-adjust: 100%;
+}
+.cb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
