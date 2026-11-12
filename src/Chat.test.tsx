@@ -76,6 +76,16 @@ describe("Chat", () => {
     expect(events.at(-1)).toEqual({ type: "message", messages: [text("답: 내일\n비 와?")] });
   });
 
+  it("sends what the box holds even when Enter comes before the typed text was rendered", async () => {
+    const engine = fakeEngine();
+    show(engine);
+    await screen.findByText(/무엇을 도와드릴까요/);
+    const box = screen.getByRole("textbox", { name: "메시지" }) as HTMLTextAreaElement;
+    box.value = "붙여 넣은 말";
+    fireEvent.keyDown(box, { key: "Enter" }); // no input event yet
+    expect(engine.send).toHaveBeenCalledWith(expect.any(String), "붙여 넣은 말", undefined);
+  });
+
   it("does not send blank text and cuts what is over 1000 characters", async () => {
     const engine = fakeEngine();
     show(engine);

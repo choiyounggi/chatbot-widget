@@ -158,7 +158,8 @@ export function Chat(props: ChatProps) {
   };
 
   const submit = () => {
-    if (say(draft)) setDraft("");
+    // what the box holds now: text and Enter in the same moment (a paste, an IME) are ahead of `draft`
+    if (say(input.current?.value ?? draft)) setDraft("");
   };
 
   const title = props.title ?? look?.title ?? "챗봇";
