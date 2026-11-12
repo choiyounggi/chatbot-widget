@@ -32,11 +32,12 @@ function ButtonView({ button, disabled, say, onLink }: { button: CardButton; dis
       : null;
   }
   if (button.action === "phone") {
-    return button.phone_number ? <a className="cb-chip" href={`tel:${button.phone_number.replace(/[^+0-9]/g, "")}`}>{button.label}</a> : null;
+    const tel = button.phone_number?.replace(/[^+0-9]/g, "") ?? "";
+    return /[0-9]/.test(tel) ? <a className="cb-chip" href={`tel:${tel}`}>{button.label}</a> : null;
   }
   const blockId = button.action === "block" ? (button.block_id ?? undefined) : undefined;
   return (
-    <button type="button" className="cb-chip" disabled={disabled} onClick={() => say(button.message_text ?? button.label, blockId)}>
+    <button type="button" className="cb-chip" disabled={disabled} onClick={() => say(button.message_text || button.label, blockId)}>
       {button.label}
     </button>
   );
@@ -51,7 +52,7 @@ function CardView({ card, disabled, say, onLink }: { card: Card; disabled: boole
   return (
     <div className="cb-card">
       {card.thumbnail && isHttpUrl(card.thumbnail.image_url) && (
-        <img className="cb-card__image" src={card.thumbnail.image_url} alt={card.thumbnail.alt_text ?? ""} loading="lazy" />
+        <img className="cb-card__image" src={card.thumbnail.image_url} alt={card.thumbnail.alt_text ?? ""} loading="lazy" referrerPolicy="no-referrer" />
       )}
       <div className="cb-card__body">
         {card.title && <p className="cb-card__title">{card.title}</p>}
@@ -75,7 +76,7 @@ function ListView({ card, disabled, say, onLink }: { card: ListCard; disabled: b
                 : <span className="cb-list__title">{item.title}</span>}
               {item.description && <span className="cb-list__desc">{item.description}</span>}
             </div>
-            {isHttpUrl(item.image_url) && <img className="cb-list__image" src={item.image_url} alt="" loading="lazy" />}
+            {isHttpUrl(item.image_url) && <img className="cb-list__image" src={item.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" />}
           </li>
         ))}
       </ul>
@@ -89,7 +90,7 @@ export function RichMessage({ message, disabled, say, onLink }: { message: BotMe
   const type = message.type ?? "text";
   if (type === "simple_image" && message.simple_image) {
     return isHttpUrl(message.simple_image.image_url)
-      ? <img className="cb-image" src={message.simple_image.image_url} alt={message.simple_image.alt_text} loading="lazy" />
+      ? <img className="cb-image" src={message.simple_image.image_url} alt={message.simple_image.alt_text} loading="lazy" referrerPolicy="no-referrer" />
       : <p className="cb-bubble">{message.simple_image.alt_text}</p>;
   }
   if (type === "basic_card" && message.basic_card) return <CardView card={message.basic_card} disabled={disabled} say={say} onLink={onLink} />;

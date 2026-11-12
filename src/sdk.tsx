@@ -9,7 +9,11 @@ export const version = "0.1.0";
 export function autoMount(script: HTMLScriptElement | null): WidgetHandle | null {
   const engine = script?.dataset.engine;
   const bot = script?.dataset.bot;
-  if (!script || !engine || !bot) return null;
+  if (!script || (!engine && !bot)) return null; // loaded for ChatbotWidget.mount() only
+  if (!engine || !bot) {
+    console.error("chatbot-widget: the script tag needs both data-engine and data-bot");
+    return null;
+  }
   const options: MountOptions = { engine, bot, mode: "launcher", open: script.dataset.open === "true" };
   if (script.dataset.color) options.color = script.dataset.color;
   if (script.dataset.title) options.title = script.dataset.title;

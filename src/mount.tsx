@@ -1,5 +1,5 @@
 import { render } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BOT_ID, engineBase, engineClient, type Engine } from "./api";
 import { postToApp, type WidgetEvent } from "./bridge";
 import { Chat, DEFAULT_COLOR } from "./Chat";
@@ -29,6 +29,7 @@ export interface WidgetHandle {
 }
 
 const COLOR = /^#[0-9A-Fa-f]{6}$/;
+const mounted = new Map<string, { handle: WidgetHandle; host: HTMLElement }>(); // one launcher per engine + bot
 
 function check(options: MountOptions): void {
   engineBase(options.engine); // throws for a non-http(s) URL
@@ -47,32 +48,45 @@ function ChatIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 2.4 1.3 4.6 3.4 6.1L4.6 21l4.3-2.3c1 .2 2 .3 3.1.3 5.5 0 10-3.6 10-8s-4.5-8-10-8Z" /></svg>;
 }
 
-function Launcher({ engine, store, options, controls, emit, onLink }: {
-  engine: Engine; store: Memory; options: MountOptions; controls: Controls; emit: (e: WidgetEvent) => void; onLink: (url: string) => boolean;
+function Launcher({ engine, store, options, controls, emit, onLink, host }: {
+  engine: Engine; store: Memory; options: MountOptions; controls: Controls; emit: (e: WidgetEvent) => void;
+  onLink: (url: string) => boolean; host: HTMLElement;
 }) {
   const [open, setOpen] = useState(options.open === true);
   const [opened, setOpened] = useState(options.open === true); // keep the conversation once it was shown
   const [look, setLook] = useState({ color: options.color ?? DEFAULT_COLOR, title: options.title ?? "챗봇" });
-  controls.set = setOpen;
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  /** Open or close; closing while focus is inside the panel gives it to the button first (a hidden
+   * panel would drop it to <body>). */
+  const show = (next: boolean | ((o: boolean) => boolean)) => setOpen((o) => {
+    const value = typeof next === "function" ? next(o) : next;
+    if (!value && panel.current?.contains(host.shadowRoot?.activeElement ?? null)) button.current?.focus();
+    return value;
+  });
+  controls.set = show;
 
   useEffect(() => { if (open) setOpened(true); }, [open]);
-  useEffect(() => {
+  useLayoutEffect(() => { // at once: an Escape right after opening must not be missed
     if (!open) return undefined;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      // only this widget's own Escape: not while composing Korean, not one the page already used
+      if (e.key === "Escape" && !e.isComposing && !e.defaultPrevented && e.composedPath().includes(host)) show(false);
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, host]);
 
   return (
     <>
       {opened && (
-        <div className="cb-panel" hidden={!open} style={{ "--cb-accent": look.color }}>
+        <div className="cb-panel" ref={panel} hidden={!open} style={{ "--cb-accent": look.color }}>
           <Chat engine={engine} store={store} session={options.session} title={options.title} color={options.color}
-                active={open} showClose onClose={() => setOpen(false)} onEvent={emit} onLink={onLink} onLook={setLook} />
+                active={open} showClose onClose={() => show(false)} onEvent={emit} onLink={onLink} onLook={setLook} />
         </div>
       )}
-      <button type="button" className="cb-launcher" style={{ "--cb-accent": look.color }} aria-expanded={open}
-              aria-label={open ? `${look.title} 닫기` : `${look.title} 열기`} onClick={() => setOpen((o) => !o)}>
+      <button type="button" ref={button} className="cb-launcher" style={{ "--cb-accent": look.color }} aria-expanded={open}
+              aria-label={open ? `${look.title} 닫기` : `${look.title} 열기`} onClick={() => show((o) => !o)}>
         {open ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4z" /></svg> : <ChatIcon />}
       </button>
     </>
@@ -83,6 +97,12 @@ function Launcher({ engine, store, options, controls, emit, onLink }: {
 export function mount(options: MountOptions): WidgetHandle {
   check(options);
   const mode = options.mode ?? "launcher";
+  // a second script tag or a page that mounts again: the launcher already there, or a fresh one in the container
+  const key = mode === "launcher" || !options.container ? `launcher:${engineBase(options.engine)}:${options.bot}` : null;
+  const existing = key ? mounted.get(key) : undefined;
+  if (existing?.host.isConnected) return existing.handle;
+  existing?.handle.destroy(); // the page removed it (a single-page app redrew <body>): start again
+  if (options.container) (options.container as HTMLElement & { chatbotWidget?: WidgetHandle }).chatbotWidget?.destroy();
   const engine = engineClient(options.engine, options.bot, options.fetch ?? ((input, init) => window.fetch(input, init)));
   const store = new Memory(engineBase(options.engine), options.bot, options.storage);
 
@@ -111,7 +131,7 @@ export function mount(options: MountOptions): WidgetHandle {
   const controls: Controls = {};
 
   if (mode === "launcher") {
-    render(<Launcher engine={engine} store={store} options={options} controls={controls} emit={emit} onLink={onLink} />, root);
+    render(<Launcher engine={engine} store={store} options={options} controls={controls} emit={emit} onLink={onLink} host={host} />, root);
   } else {
     render(
       <Chat engine={engine} store={store} session={options.session} title={options.title} color={options.color} active
@@ -122,7 +142,7 @@ export function mount(options: MountOptions): WidgetHandle {
   }
 
   let destroyed = false;
-  return {
+  const handle: WidgetHandle = {
     open: () => controls.set?.(true),
     close: () => controls.set?.(false),
     toggle: () => controls.set?.((o) => !o),
@@ -130,10 +150,16 @@ export function mount(options: MountOptions): WidgetHandle {
       if (destroyed) return;
       destroyed = true;
       render(null, root);
-      shadow.replaceChildren();
+      if (root.parentNode === shadow) shadow.replaceChildren();
       if (host !== options.container) host.remove();
+      if (key) mounted.delete(key);
+      const owner = host as HTMLElement & { chatbotWidget?: WidgetHandle };
+      if (owner.chatbotWidget === handle) delete owner.chatbotWidget;
     },
   };
+  if (key) mounted.set(key, { handle, host });
+  (host as HTMLElement & { chatbotWidget?: WidgetHandle }).chatbotWidget = handle;
+  return handle;
 }
 
 function hasApp(): boolean {

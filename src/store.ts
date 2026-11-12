@@ -26,6 +26,19 @@ export function isSessionId(value: string): boolean {
   return SESSION_ID.test(value);
 }
 
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** An entry written by this or another version, another tab or the page itself: kept only when it
+ * can be shown. */
+export function isEntry(value: unknown): value is Entry {
+  if (!isObject(value) || typeof value.id !== "string") return false;
+  if (value.from === "user") return typeof value.text === "string" && (value.blockId === undefined || typeof value.blockId === "string");
+  if (value.from !== "bot" || !isObject(value.message)) return false;
+  const m = value.message;
+  return typeof m.text === "string" && Array.isArray(m.quick_replies) && m.quick_replies.every((q) => typeof q === "string")
+    && (m.quick_reply_items === undefined || (Array.isArray(m.quick_reply_items) && m.quick_reply_items.every((q) => isObject(q) && typeof q.label === "string")));
+}
+
 /** One conversation per engine and bot on this device (localStorage), or in memory when the
  * browser refuses storage (private mode, blocked site data). Never throws. */
 export class Memory {
@@ -42,7 +55,7 @@ export class Memory {
       if (raw) {
         const saved = JSON.parse(raw) as Saved;
         if (typeof saved?.session === "string" && isSessionId(saved.session) && Array.isArray(saved.entries)) {
-          return { session: saved.session, entries: saved.entries.slice(-MAX_ENTRIES) };
+          return { session: saved.session, entries: saved.entries.filter(isEntry).slice(-MAX_ENTRIES) };
         }
       }
     } catch {

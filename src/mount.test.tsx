@@ -49,12 +49,41 @@ describe("mount: launcher", () => {
     handle.toggle();
     await waitFor(() => expect(widgetHost().shadowRoot?.querySelector(".cb-panel")).not.toHaveAttribute("hidden"));
     expect(ui.getByText("어서 오세요")).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.keyDown(ui.getByRole("textbox", { name: "메시지" }), { key: "Escape" });
     await waitFor(() => expect(widgetHost().shadowRoot?.querySelector(".cb-panel")).toHaveAttribute("hidden"));
     handle.open();
     await waitFor(() => expect(widgetHost().shadowRoot?.querySelector(".cb-panel")).not.toHaveAttribute("hidden"));
     await userEvent.click(ui.getByRole("button", { name: "닫기" }));
     await waitFor(() => expect(widgetHost().shadowRoot?.querySelector(".cb-panel")).toHaveAttribute("hidden"));
+  });
+
+  it("a second script for the same bot does not add a second launcher", async () => {
+    const first = start();
+    const second = start();
+    expect(second.handle).toBe(first.handle);
+    expect(document.querySelectorAll("[data-chatbot-widget]")).toHaveLength(1);
+    first.handle.destroy();
+    const third = start();
+    expect(third.handle).not.toBe(first.handle);
+    expect(document.querySelectorAll("[data-chatbot-widget]")).toHaveLength(1);
+  });
+
+  it("Escape closes only from inside the widget, not while composing or after the page used it", async () => {
+    start({ open: true });
+    const host = widgetHost();
+    const ui = shadowOf(host);
+    const input = await ui.findByRole("textbox", { name: "메시지" });
+    input.focus();
+    const panel = () => host.shadowRoot?.querySelector(".cb-panel");
+    fireEvent.keyDown(document.body, { key: "Escape" }); // focus elsewhere on the page
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true, bubbles: true, composed: true });
+    const used = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true, cancelable: true });
+    used.preventDefault();
+    input.dispatchEvent(used);
+    expect(panel()).not.toHaveAttribute("hidden");
+    fireEvent.keyDown(input, { key: "Escape", bubbles: true, composed: true });
+    await waitFor(() => expect(panel()).toHaveAttribute("hidden"));
+    expect(host.shadowRoot?.activeElement).toBe(await ui.findByRole("button", { name: /열기$/ })); // focus is not lost
   });
 
   it("destroy removes everything, once", async () => {
@@ -108,6 +137,19 @@ describe("mount: inline and page", () => {
     expect(posted.map((p) => JSON.parse(p))).toContainEqual({ type: "link", url: "https://a.example/x" });
   });
 
+  it("mounting again into the same element replaces the first widget", async () => {
+    const box = document.createElement("div");
+    document.body.appendChild(box);
+    const first = start({ mode: "inline", container: box });
+    await shadowOf(box).findByText("어서 오세요");
+    const second = start({ mode: "inline", container: box, title: "두 번째" });
+    expect(await shadowOf(box).findByRole("heading", { name: "두 번째" })).toBeInTheDocument();
+    first.handle.destroy(); // already replaced: leaves the second alone
+    expect(shadowOf(box).getByRole("heading", { name: "두 번째" })).toBeInTheDocument();
+    second.handle.destroy();
+    expect(box.shadowRoot?.childNodes.length).toBe(0);
+  });
+
   it("an onEvent that throws does not break the chat", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const box = document.createElement("div");
@@ -151,11 +193,14 @@ describe("autoMount", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does nothing without a script, an engine or a bot, and logs bad options instead of throwing", () => {
+  it("does nothing without a script or its data, says which is missing, and logs bad options instead of throwing", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(autoMount(null)).toBeNull();
+    expect(autoMount(script({}))).toBeNull(); // loaded for mount() only
+    expect(error).not.toHaveBeenCalled();
     expect(autoMount(script({ bot: "sample" }))).toBeNull();
     expect(autoMount(script({ engine: "https://e.example" }))).toBeNull();
-    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(error).toHaveBeenCalledWith("chatbot-widget: the script tag needs both data-engine and data-bot");
     expect(autoMount(script({ engine: "https://e.example", bot: "BAD" }))).toBeNull();
     expect(error).toHaveBeenCalled();
     error.mockRestore();

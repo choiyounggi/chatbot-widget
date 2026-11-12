@@ -1,6 +1,8 @@
-/* Inside the widget's shadow root: nothing here leaks into the page, nothing of the page leaks in. */
+/* Inside the widget's shadow root: nothing here leaks into the page. The page's own rules can still
+   match the host element, so everything inheritable is set again on .cb-fill, which they cannot reach. */
 :host {
   all: initial;
+  display: block;
   --cb-accent: #2563eb;
   --cb-bg: #ffffff;
   --cb-surface: #f3f4f6;
@@ -9,9 +11,6 @@
   --cb-muted: #6b7280;
   --cb-on-accent: #ffffff;
   --cb-danger: #b91c1c;
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif;
-  color: var(--cb-text);
-  -webkit-text-size-adjust: 100%;
 }
 @media (prefers-color-scheme: dark) {
   :host {
@@ -136,9 +135,16 @@ p { margin: 0; }
   box-shadow: 0 12px 40px rgb(0 0 0 / 0.3);
 }
 .cb-panel[hidden] { display: none; }
-@media (max-width: 480px) {
+@media (max-width: 480px), (max-height: 520px) {
   .cb-panel { inset: 0; width: auto; height: auto; border-radius: 0; }
   .cb-panel:not([hidden]) ~ .cb-launcher { display: none; }
 }
-/* ---------------------------------------------------------------- inline / page */
-.cb-fill { width: 100%; height: 100%; }
+/* ---------------------------------------------------------------- the root inside the shadow */
+.cb-fill {
+  width: 100%; height: 100%;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-style: normal; font-weight: 400; letter-spacing: normal; word-spacing: normal; text-align: left; text-indent: 0;
+  text-transform: none; text-shadow: none; white-space: normal; direction: ltr; visibility: visible; cursor: auto;
+  color: var(--cb-text); -webkit-text-size-adjust: 100%;
+}
+.cb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

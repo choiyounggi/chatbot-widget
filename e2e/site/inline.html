@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>도움말 페이지</title>
+    <style>
+      * { font-family: serif !important; color: rebeccapurple; }
+      div { line-height: 3; direction: rtl; }
+      #help { height: 400px; border: 1px solid #999; }
+    </style>
+  </head>
+  <body>
+    <h1>도움말</h1>
+    <div id="help"></div>
+    <p id="after">이 문단은 채팅창 아래에 그대로 있어야 해요.</p>
+    <script src="http://127.0.0.1:5180/chatbot.js"
+            onload="window.chat = ChatbotWidget.mount({ engine: 'http://127.0.0.1:8766', bot: 'sample', mode: 'inline', container: document.getElementById('help') })"></script>
+  </body>
+</html>

@@ -61,19 +61,21 @@ export function engineClient(engine: string, bot: string, fetchImpl: typeof fetc
   async function call<T>(path: string, init: RequestInit): Promise<T> {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeoutMs);
-    let response: Response;
     try {
-      response = await fetchImpl(`${base}${path}`, { ...init, signal: abort.signal, credentials: "omit" });
-    } catch {
-      throw new EngineError(abort.signal.aborted ? "timeout" : "network");
+      let response: Response;
+      try {
+        response = await fetchImpl(`${base}${path}`, { ...init, signal: abort.signal, credentials: "omit" });
+      } catch {
+        throw new EngineError(abort.signal.aborted ? "timeout" : "network");
+      }
+      if (!response.ok) throw new EngineError(failureOf(response.status));
+      try {
+        return (await response.json()) as T; // the timeout covers a body that stalls, too
+      } catch {
+        throw new EngineError(abort.signal.aborted ? "timeout" : "unavailable");
+      }
     } finally {
       clearTimeout(timer);
-    }
-    if (!response.ok) throw new EngineError(failureOf(response.status));
-    try {
-      return (await response.json()) as T;
-    } catch {
-      throw new EngineError("unavailable");
     }
   }
 

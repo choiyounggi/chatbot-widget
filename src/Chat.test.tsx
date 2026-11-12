@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EngineError, type Engine } from "./api";
@@ -160,6 +160,7 @@ describe("Chat", () => {
     await screen.findByText("답: 안녕");
     const first = store.load()?.session;
     await userEvent.click(screen.getByRole("button", { name: "새 대화" }));
+    expect(screen.getByRole("textbox", { name: "메시지" })).toHaveFocus();
     await waitFor(() => expect(engine.open).toHaveBeenCalledTimes(2));
     expect(screen.queryByText("답: 안녕")).not.toBeInTheDocument();
     expect(engine.open.mock.calls[1]?.[0]).not.toBe(first);
@@ -195,6 +196,64 @@ describe("Chat", () => {
   it("before the bot's look arrives it shows a plain title and the default color", () => {
     show(fakeEngine({ look: () => new Promise(() => undefined), open: () => new Promise(() => undefined) }));
     expect(screen.getByRole("heading", { name: "챗봇" })).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "답을 쓰는 중" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("답을 쓰는 중");
+  });
+
+  it("Enter while a reply is on its way keeps what was typed, and sends it once the reply came", async () => {
+    let finish: (m: BotMessage[]) => void = () => undefined;
+    const engine = fakeEngine({ open: vi.fn(() => new Promise<BotMessage[]>((r) => { finish = r; })) });
+    show(engine);
+    const box = screen.getByRole("textbox", { name: "메시지" });
+    await userEvent.type(box, "안녕{Enter}");
+    expect(box).toHaveValue("안녕");
+    expect(engine.send).not.toHaveBeenCalled();
+    finish([WELCOME]);
+    await screen.findByText(/무엇을 도와드릴까요/);
+    await userEvent.type(box, "{Enter}");
+    expect(engine.send).toHaveBeenCalledWith(expect.any(String), "안녕", undefined);
+    expect(box).toHaveValue("");
+  });
+
+  it("a reply that arrives after the chat was closed for good changes nothing", async () => {
+    let finish: (m: BotMessage[]) => void = () => undefined;
+    const engine = fakeEngine({ open: vi.fn(() => new Promise<BotMessage[]>((r) => { finish = r; })) });
+    const { store, events } = show(engine);
+    cleanup();
+    finish([WELCOME]);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(store.load()?.entries ?? []).toEqual([]);
+    expect(events).toEqual([{ type: "ready" }]);
+  });
+
+  it("shows what another tab saved (a message, or 새 대화 there)", async () => {
+    const engine = fakeEngine();
+    const { store } = show(engine);
+    await screen.findByText(/무엇을 도와드릴까요/);
+    const other = { session: "from-other-tab", entries: [{ id: "x", from: "user" as const, text: "다른 탭에서 보낸 말" }] };
+    localStorage.setItem(store.key, JSON.stringify(other));
+    fireEvent(window, new StorageEvent("storage", { key: store.key }));
+    expect(await screen.findByText("다른 탭에서 보낸 말")).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "메시지" }), "이어서{Enter}");
+    expect(engine.send).toHaveBeenLastCalledWith("from-other-tab", "이어서", undefined);
+    fireEvent(window, new StorageEvent("storage", { key: "someone-else" }));
+    expect(screen.getByText("다른 탭에서 보낸 말")).toBeInTheDocument();
+  });
+
+  it("a quick reply with an empty message text says its label", async () => {
+    const engine = fakeEngine({ open: vi.fn(async () => [text("골라 주세요", {
+      quick_replies: ["예"], quick_reply_items: [{ label: "예", action: "message", message_text: "", block_id: null }],
+    })]) });
+    show(engine);
+    await userEvent.click(await screen.findByRole("button", { name: "예" }));
+    expect(engine.send).toHaveBeenCalledWith(expect.any(String), "예", undefined);
+  });
+
+  it("cuts long text at whole characters", async () => {
+    const engine = fakeEngine();
+    show(engine);
+    await screen.findByText(/무엇을 도와드릴까요/);
+    fireEvent.input(screen.getByRole("textbox", { name: "메시지" }), { target: { value: `${"가".repeat(999)}😀😀` } });
+    fireEvent.submit(screen.getByRole("button", { name: "보내기" }).closest("form") as HTMLFormElement);
+    await waitFor(() => expect(engine.send).toHaveBeenCalledWith(expect.any(String), `${"가".repeat(999)}😀`, undefined));
   });
 });

@@ -57,6 +57,18 @@ describe("engineClient", () => {
     })) as unknown as typeof fetch, 20);
     await expect(slow.send("s", "안녕")).rejects.toMatchObject({ failure: "timeout" });
     const garbled = engineClient("https://e.example", "sample", reply(200, "<html>") as unknown as typeof fetch);
-    await expect(garbled.look()).rejects.toBeInstanceOf(EngineError);
+    await expect(garbled.look()).rejects.toMatchObject({ failure: "unavailable" });
+    expect(new EngineError("network")).toBeInstanceOf(Error);
+  });
+
+  it("times out a reply whose body never ends", async () => {
+    const stalled = vi.fn(async (_url: string, init: RequestInit) => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("{"));
+        init.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")));
+      },
+    })));
+    const engine = engineClient("https://e.example", "sample", stalled as unknown as typeof fetch, 30);
+    await expect(engine.send("s", "안녕")).rejects.toMatchObject({ failure: "timeout" });
   });
 });

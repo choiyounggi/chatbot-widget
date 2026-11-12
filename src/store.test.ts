@@ -37,6 +37,17 @@ describe("Memory", () => {
     }
   });
 
+  it("drops stored entries this version cannot show, keeps the rest", () => {
+    const m = new Memory("https://e.example", "sample");
+    const good = [bot(1), { id: "u", from: "user", text: "질문", blockId: "weather" }];
+    const bad = [{ from: "bot" }, { id: "b", from: "bot", message: { text: 3, quick_replies: [] } }, null, "x",
+                 { id: "c", from: "bot", message: { text: "t", quick_replies: [1] } },
+                 { id: "d", from: "bot", message: { text: "t", quick_replies: [], quick_reply_items: [{}] } },
+                 { id: "e", from: "user", text: "t", blockId: 5 }, { id: "f", from: "system", text: "t" }];
+    localStorage.setItem(m.key, JSON.stringify({ session: "abc", entries: [bad[0], good[0], ...bad.slice(1), good[1]] }));
+    expect(m.load()).toEqual({ session: "abc", entries: good });
+  });
+
   it("works in memory when the browser refuses storage", () => {
     const refusing = () => { throw new DOMException("denied", "SecurityError"); };
     const m = new Memory("https://e.example", "sample", refusing);

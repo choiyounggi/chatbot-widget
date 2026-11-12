@@ -43,12 +43,23 @@ describe("RichMessage", () => {
     expect(screen.getByRole("link", { name: "자세히" })).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getByRole("link", { name: "전화" })).toHaveAttribute("href", "tel:+8221234567");
     expect(screen.queryByText("나쁜 링크")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "해" })).toHaveAttribute("referrerpolicy", "no-referrer");
     await userEvent.click(screen.getByRole("button", { name: "내일은?" }));
     expect(say).toHaveBeenLastCalledWith("내일 날씨", undefined);
     await userEvent.click(screen.getByRole("button", { name: "처음으로" }));
     expect(say).toHaveBeenLastCalledWith("처음으로", "welcome");
     fireEvent.click(screen.getByRole("link", { name: "자세히" }));
     expect(onLink).toHaveBeenCalledWith("https://weather.example/today");
+  });
+
+  it("a phone button without digits and a message button with an empty text", async () => {
+    const { say } = show({ ...base, type: "basic_card", basic_card: { title: "t", buttons: [
+      { label: "전화 없음", action: "phone", phone_number: "--" },
+      { label: "문의", action: "message", message_text: "" },
+    ] } });
+    expect(screen.queryByText("전화 없음")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "문의" }));
+    expect(say).toHaveBeenCalledWith("문의", undefined);
   });
 
   it("a link an app opens does not also open in the browser", () => {

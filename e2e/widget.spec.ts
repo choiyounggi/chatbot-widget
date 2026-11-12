@@ -19,9 +19,10 @@ test("a site adds one script tag: launcher → chat with the engine → the conv
   await page.goto(`${SITE}/index.html`);
   const launcher = page.getByRole("button", { name: "챗봇 열기" });
   await expect(launcher).toBeVisible();
-  // the site's own CSS does not reach the widget (it lives in a shadow root)
+  // the site's own CSS does not reach the widget (a shadow root, and every inherited style set again inside)
   await expect(launcher).not.toHaveCSS("background-color", "rgb(255, 105, 180)");
   await launcher.click();
+  await expect(page.getByRole("textbox", { name: "메시지" })).toHaveCSS("font-family", /Apple SD Gothic Neo/);
 
   const chat = page.getByRole("region", { name: "샘플 상담 대화" });
   await expect(chat.getByRole("heading", { name: "샘플 상담" })).toBeVisible();
@@ -58,6 +59,7 @@ test("a site the bot does not allow is told so, and the engine runs no turn for 
   await page.getByRole("button", { name: "챗봇 열기" }).click();
   await expect(page.getByRole("alert")).toHaveText("이 사이트에서는 쓸 수 없는 챗봇이에요.");
   await expect(page.getByRole("textbox", { name: "메시지" })).toHaveCount(0);
+  expect(turns.length).toBeGreaterThan(0);
   expect(turns.every((s) => s === 403)).toBe(true);
 });
 
@@ -84,4 +86,20 @@ test("chat.html is a full-screen chat for app webviews and tells the app what ha
 test("chat.html without an engine or a bot says why", async ({ page }) => {
   await page.goto(`${WIDGET}/chat.html?bot=sample`);
   await expect(page.locator("#app")).toHaveText(/채팅을 열 수 없어요: engine must be an http\(s\) URL/);
+});
+
+test("mount() inline fills the page's box: the log scrolls inside it, the page around it stays put", async ({ page }) => {
+  await page.goto(`${SITE}/inline.html`);
+  const chat = page.getByRole("region", { name: "샘플 상담 대화" });
+  await expect(chat).toBeVisible();
+  expect((await chat.boundingBox())?.height).toBe(400);
+  for (let i = 0; i < 6; i++) {
+    await ask(page, `안녕하세요 ${i}`);
+    await expect(chat.getByText(`안녕하세요 ${i}`)).toBeVisible();
+    await expect(chat.getByRole("status")).toHaveCount(0); // the answer came: the next one may be sent
+  }
+  await expect(chat.getByText("안녕하세요 5")).toBeVisible(); // scrolled to the newest
+  expect((await chat.boundingBox())?.height).toBe(400); // grew inside, not the page
+  await expect(chat.getByRole("heading", { name: "샘플 상담" })).toHaveCSS("direction", "ltr");
+  await expect(chat.getByText("안녕하세요 0")).toHaveCSS("font-family", /Apple SD Gothic Neo/);
 });

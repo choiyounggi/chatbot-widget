@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { EngineError, FAILURE_TEXT, MAX_TEXT, type Engine, type Failure } from "./api";
 import type { WidgetEvent } from "./bridge";
 import { quickReplies, RichMessage, type OnLink } from "./RichMessage";
@@ -44,8 +44,12 @@ export function Chat(props: ChatProps) {
   const input = useRef<HTMLTextAreaElement>(null);
   const live = useRef(chat); // the latest conversation, for callbacks that outlive a render
   live.current = chat;
+  const alive = useRef(true); // false after unmount: a late reply changes nothing
+  const busyNow = useRef(false);
+  busyNow.current = busy;
 
   const update = (change: (saved: Saved) => Saved) => {
+    if (!alive.current) return;
     const next = change(live.current);
     live.current = next;
     store.save(next);
@@ -56,7 +60,7 @@ export function Chat(props: ChatProps) {
     return failure;
   };
   const received = (messages: BotMessage[]) => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 || !alive.current) return;
     update((s) => ({ ...s, entries: [...s.entries, ...messages.map((m): Entry => ({ id: nextId(), from: "bot", message: m }))] }));
     onEvent({ type: "message", messages });
   };
@@ -73,7 +77,14 @@ export function Chat(props: ChatProps) {
     }
   };
 
+  // right after the first render, so an unmount that comes before the effects ran still counts
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+
   useEffect(() => {
+    if (!alive.current) return undefined; // removed before its effects ran
     let stopped = false;
     engine.look().then((l) => {
       if (stopped) return;
@@ -82,13 +93,27 @@ export function Chat(props: ChatProps) {
     }).catch((error: unknown) => { if (!stopped) fail(failureOf(error)); });
     if (live.current.entries.length === 0) void open(live.current.session);
     onEvent({ type: "ready" });
-    return () => { stopped = true; };
+    // another tab of this site changed the conversation (a message, 새 대화): show what it saved
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== store.key || busyNow.current) return;
+      const saved = store.load();
+      if (saved && (!props.session || saved.session === props.session)) {
+        live.current = saved;
+        setChat(saved);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      stopped = true;
+      alive.current = false;
+      window.removeEventListener("storage", onStorage);
+    };
   }, []); // once per mount
 
   useEffect(() => {
     const el = log.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [chat.entries.length, busy]);
+  }, [chat.entries.length, busy, props.active]); // a hidden panel loses its scroll position
 
   useEffect(() => {
     if (props.active) input.current?.focus();
@@ -107,12 +132,14 @@ export function Chat(props: ChatProps) {
     }
   };
 
-  const say = (text: string, blockId?: string) => {
-    const clean = text.trim().slice(0, MAX_TEXT);
-    if (!clean || busy || blocked) return;
+  /** False when nothing was sent (blank, busy, blocked): the input keeps what was typed. */
+  const say = (text: string, blockId?: string): boolean => {
+    const clean = Array.from(text.trim()).slice(0, MAX_TEXT).join(""); // whole characters, never half a pair
+    if (!clean || busy || blocked) return false;
     const entry: Extract<Entry, { from: "user" }> = { id: nextId(), from: "user", text: clean, ...(blockId ? { blockId } : {}) };
     update((s) => ({ ...s, entries: [...s.entries, entry] }));
     void deliver(entry);
+    return true;
   };
 
   const retry = (entry: Extract<Entry, { from: "user" }>) => {
@@ -127,13 +154,12 @@ export function Chat(props: ChatProps) {
     store.clear();
     const fresh = { session: newSessionId(), entries: [] };
     update(() => fresh);
+    input.current?.focus(); // the button is disabled while the new session opens
     void open(fresh.session);
   };
 
   const submit = () => {
-    if (!draft.trim()) return;
-    say(draft);
-    setDraft("");
+    if (say(draft)) setDraft("");
   };
 
   const title = props.title ?? look?.title ?? "챗봇";
@@ -174,7 +200,7 @@ export function Chat(props: ChatProps) {
                 )}
               </div>
             ))}
-            {busy && <div className="cb-row cb-row--bot"><span className="cb-typing" role="status" aria-label="답을 쓰는 중"><i /><i /><i /></span></div>}
+            {busy && <div className="cb-row cb-row--bot"><span className="cb-typing" role="status"><span className="cb-sr">답을 쓰는 중</span><i /><i /><i /></span></div>}
           </div>
           {openFailed && !busy && (
             <p className="cb-failed cb-failed--open" role="alert">
@@ -186,7 +212,7 @@ export function Chat(props: ChatProps) {
             <div className="cb-replies" role="group" aria-label="바로 답하기">
               {replies.map((q, i) => (
                 <button key={i} type="button" className="cb-chip" disabled={busy}
-                        onClick={() => say(q.message_text ?? q.label, q.action === "block" ? (q.block_id ?? undefined) : undefined)}>
+                        onClick={() => say(q.message_text || q.label, q.action === "block" ? (q.block_id ?? undefined) : undefined)}>
                   {q.label}
                 </button>
               ))}
@@ -206,7 +232,7 @@ export function Chat(props: ChatProps) {
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20.5 21 12 3 3.5l2.6 7.1L14 12l-8.4 1.4z" /></svg>
             </button>
           </form>
-          {draft.length > MAX_TEXT - 100 && <p className="cb-count" aria-live="polite">{draft.length}/{MAX_TEXT}</p>}
+          {draft.length > MAX_TEXT - 100 && <p className="cb-count">{draft.length}/{MAX_TEXT}</p>}
         </>
       )}
     </section>

@@ -46,6 +46,10 @@ Events arrive as JSON strings: `{"type":"ready"}`, `{"type":"message","messages"
 
 Load the page from an https address. A `file://` page or an HTML string has the origin `null`, which cannot be allowed.
 
+**In production**, list your engine in `chat.html`'s `<meta name="chatbot-engines" content="https://YOUR-ENGINE">`; left empty, the page talks to whatever `engine` a link names. The page refuses to open inside another site's iframe. If you can, also serve it with `Content-Security-Policy: frame-ancestors 'none'`.
+
+Scripts on a site that embeds the widget can read its conversation (it is part of that page), so embed it only on sites you trust.
+
 ## Develop
 ```sh
 npm ci
