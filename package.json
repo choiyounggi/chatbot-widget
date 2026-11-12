@@ -1,0 +1,46 @@
+{
+  "name": "chatbot-widget",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && vite build --config vite.sdk.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --coverage",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "gen:api": "openapi-typescript ${ENGINE_OPENAPI:-../chatbot-engine/docs/openapi.json} -o src/schema.d.ts",
+    "e2e": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "preact": "11.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.0",
+    "@preact/preset-vite": "2.10.6",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/preact": "3.2.6",
+    "@testing-library/user-event": "14.6.8",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "jsdom": "31.0.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2",
+    "vite": "8.3.7",
+    "vitest": "5.1.0"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
+  }
+}
