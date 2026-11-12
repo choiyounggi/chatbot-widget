@@ -84,7 +84,6 @@ export function Chat(props: ChatProps) {
   }, []);
 
   useEffect(() => {
-    if (!alive.current) return undefined; // removed before its effects ran
     let stopped = false;
     engine.look().then((l) => {
       if (stopped) return;

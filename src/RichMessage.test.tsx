@@ -54,7 +54,7 @@ describe("RichMessage", () => {
 
   it("a phone button without digits and a message button with an empty text", async () => {
     const { say } = show({ ...base, type: "basic_card", basic_card: { title: "t", buttons: [
-      { label: "전화 없음", action: "phone", phone_number: "--" },
+      { label: "전화 없음", action: "phone", phone_number: "+" },
       { label: "문의", action: "message", message_text: "" },
     ] } });
     expect(screen.queryByText("전화 없음")).not.toBeInTheDocument();

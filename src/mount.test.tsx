@@ -77,9 +77,10 @@ describe("mount: launcher", () => {
     const panel = () => host.shadowRoot?.querySelector(".cb-panel");
     fireEvent.keyDown(document.body, { key: "Escape" }); // focus elsewhere on the page
     fireEvent.keyDown(input, { key: "Escape", isComposing: true, bubbles: true, composed: true });
-    const used = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true, cancelable: true });
-    used.preventDefault();
-    input.dispatchEvent(used);
+    const pageUsesIt = (e: Event) => e.preventDefault(); // e.g. the page's own dialog closes first
+    window.addEventListener("keydown", pageUsesIt, { capture: true });
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true, cancelable: true }));
+    window.removeEventListener("keydown", pageUsesIt, { capture: true });
     expect(panel()).not.toHaveAttribute("hidden");
     fireEvent.keyDown(input, { key: "Escape", bubbles: true, composed: true });
     await waitFor(() => expect(panel()).toHaveAttribute("hidden"));
@@ -142,7 +143,10 @@ describe("mount: inline and page", () => {
     document.body.appendChild(box);
     const first = start({ mode: "inline", container: box });
     await shadowOf(box).findByText("어서 오세요");
+    const removed = vi.spyOn(window, "removeEventListener");
     const second = start({ mode: "inline", container: box, title: "두 번째" });
+    await waitFor(() => expect(removed).toHaveBeenCalledWith("storage", expect.any(Function))); // the first chat was taken down
+    removed.mockRestore();
     expect(await shadowOf(box).findByRole("heading", { name: "두 번째" })).toBeInTheDocument();
     first.handle.destroy(); // already replaced: leaves the second alone
     expect(shadowOf(box).getByRole("heading", { name: "두 번째" })).toBeInTheDocument();
